@@ -92,7 +92,7 @@ extension BleTransport: BleModuleDelegate {
         DispatchQueue.main.async {
             self.peripheralsServicesTuple = [] /// We clean `peripheralsServicesTuple` at the start of each scan so the changes can be properly propagated and not before because it has info needed for connecting and writing to peripherals
             
-            self.bleModule.scan(duration: duration, serviceIdentifiers: self.configuration.services.map({ $0.service }), discovery: { [weak self] discovery, discoveries in
+            self.bleModule.scan(duration: duration, serviceIdentifiers: self.configuration.devices.map({ $0.service.service }), discovery: { [weak self] discovery, discoveries in
                 guard let self = self else { return .continue }
                 if self.updatePeripheralsServicesTuple(discoveries: discoveries) {
                     callback(self.peripheralsServicesTuple)
@@ -182,11 +182,11 @@ extension BleTransport: BleModuleDelegate {
     fileprivate func send<S: Sendable>(value: S, retryWithResponse: Bool = false, success: @escaping EmptyResponse, failure: @escaping BleErrorResponse) {
         let connectedPeripheral: PeripheralIdentifier
         let connectedPeripheralTuple: PeripheralInfo
-        let peripheralService: BleService
+        let device: Device
         let currentConnectedTuple = currentConnectedTuple()
         switch currentConnectedTuple {
         case .success(let tuple):
-            (connectedPeripheral, connectedPeripheralTuple, peripheralService) = tuple
+            (connectedPeripheral, connectedPeripheralTuple, device) = tuple
         case .failure(let error):
             failure(error)
             return
@@ -194,10 +194,10 @@ extension BleTransport: BleModuleDelegate {
         let writeCharacteristic: CharacteristicIdentifier
         let type: CBCharacteristicWriteType
         if let canWriteWithoutCharacteristic = connectedPeripheralTuple.canWriteWithoutResponse {
-            writeCharacteristic = peripheralService.writeCharacteristic(canWriteWithoutResponse: canWriteWithoutCharacteristic)
+            writeCharacteristic = device.service.writeCharacteristic(canWriteWithoutResponse: canWriteWithoutCharacteristic)
             type = canWriteWithoutCharacteristic ? .withoutResponse : .withResponse
         } else {
-            writeCharacteristic = retryWithResponse ? peripheralService.writeWithResponse : peripheralService.writeWithoutResponse
+            writeCharacteristic = retryWithResponse ? device.service.writeWithResponse : device.service.writeWithoutResponse
             type = retryWithResponse ? .withResponse : .withoutResponse
         }
         self.bleModule.write(to: writeCharacteristic, value: value, type: type) { [weak self] result in
@@ -395,12 +395,12 @@ extension BleTransport: BleModuleDelegate {
         }
     }
     
-    fileprivate func currentConnectedTuple() -> Result<(PeripheralIdentifier, PeripheralInfo, BleService), BleTransportError> {
+    fileprivate func currentConnectedTuple() -> Result<(PeripheralIdentifier, PeripheralInfo, Device), BleTransportError> {
         guard let connectedPeripheral = connectedPeripheral else { return .failure(.currentConnectedError(description: "Not connected")) }
         guard let connectedPeripheralTuple = peripheralsServicesTuple.first(where: { $0.peripheral.uuid == connectedPeripheral.uuid }) else { return .failure(.currentConnectedError(description: "peripheralsServiceTuple doesn't contain connected peripheral UUID")) }
-        guard let peripheralService = configuration.serviceMatching(serviceUUID: connectedPeripheralTuple.serviceUUID) else { return .failure(.currentConnectedError(description: "No matching peripheralService")) }
+        guard let device = configuration.serviceMatching(serviceUUID: connectedPeripheralTuple.serviceUUID) else { return .failure(.currentConnectedError(description: "No matching peripheralService")) }
         
-        return .success((connectedPeripheral, connectedPeripheralTuple, peripheralService))
+        return .success((connectedPeripheral, connectedPeripheralTuple, device))
     }
     
     /**
@@ -480,16 +480,16 @@ extension BleTransport: BleModuleDelegate {
     }
     
     fileprivate func listen(apduReceived: @escaping APDUResponse, setupFinished: EmptyResponse?, failure: @escaping BleErrorResponse) {
-        let peripheralService: BleService
+        let device: Device
         let currentConnectedTuple = currentConnectedTuple()
         switch currentConnectedTuple {
         case .success(let tuple):
-            (_, _, peripheralService) = tuple
+            (_, _, device) = tuple
         case .failure(let error):
             failure(error)
             return
         }
-        self.bleModule.listen(to: peripheralService.notify) { (result: ReadResult<APDU>) in
+        self.bleModule.listen(to: device.service.notify) { (result: ReadResult<APDU>) in
             switch result {
             case .success(let apdu):
                 apduReceived(apdu)
@@ -541,9 +541,10 @@ extension BleTransport: BleModuleDelegate {
         let apdu = APDU(data: data)
 
         let connectedPeripheral: PeripheralIdentifier
+        let device: Device
         switch currentConnectedTuple() {
         case .success(let tuple):
-            (connectedPeripheral, _, _) = tuple
+            (connectedPeripheral, _, device) = tuple
         case .failure(let error):
             failure(error)
             return
@@ -558,12 +559,16 @@ extension BleTransport: BleModuleDelegate {
                 if let error = self.parseStatus(response: response, errorCodes: errorCodes) {
                     failure(error)
                 } else {
-                    self.notifyDisconnected {
-                        self.connect(toPeripheralID: connectedPeripheral, disconnectedCallback: disconnectedCallback) { _ in
-                            success()
-                        } failure: { error in
-                            failure(error)
+                    if device != .flex {
+                        self.notifyDisconnected {
+                            self.connect(toPeripheralID: connectedPeripheral, disconnectedCallback: disconnectedCallback) { _ in
+                                success()
+                            } failure: { error in
+                                failure(error)
+                            }
                         }
+                    } else {
+                        success()
                     }
                 }
             case .failure(let error):
@@ -577,9 +582,10 @@ extension BleTransport: BleModuleDelegate {
         let apdu = APDU(data: [0xb0, 0xa7, 0x00, 0x00])
         
         let connectedPeripheral: PeripheralIdentifier
+        let device: Device
         switch currentConnectedTuple() {
         case .success(let tuple):
-            (connectedPeripheral, _, _) = tuple
+            (connectedPeripheral, _, device) = tuple
         case .failure(let error):
             failure(error)
             return
@@ -591,12 +597,16 @@ extension BleTransport: BleModuleDelegate {
             
             switch result {
             case .success(_):
-                self.notifyDisconnected {
-                    self.connect(toPeripheralID: connectedPeripheral, disconnectedCallback: disconnectedCallback) { _ in
-                        success()
-                    } failure: { error in
-                        failure(error)
+                if device != .flex {
+                    self.notifyDisconnected {
+                        self.connect(toPeripheralID: connectedPeripheral, disconnectedCallback: disconnectedCallback) { _ in
+                            success()
+                        } failure: { error in
+                            failure(error)
+                        }
                     }
+                } else {
+                    success()
                 }
             case .failure(let error):
                 failure(error)
