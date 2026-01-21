@@ -559,7 +559,7 @@ extension BleTransport: BleModuleDelegate {
                 if let error = self.parseStatus(response: response, errorCodes: errorCodes) {
                     failure(error)
                 } else {
-                    if device != .flex {
+                    if device != .flex, device != .gen5 {
                         self.notifyDisconnected {
                             self.connect(toPeripheralID: connectedPeripheral, disconnectedCallback: disconnectedCallback) { _ in
                                 success()
@@ -597,7 +597,7 @@ extension BleTransport: BleModuleDelegate {
             
             switch result {
             case .success(_):
-                if device != .flex {
+                if device != .flex, device != .gen5 {
                     self.notifyDisconnected {
                         self.connect(toPeripheralID: connectedPeripheral, disconnectedCallback: disconnectedCallback) { _ in
                             success()
