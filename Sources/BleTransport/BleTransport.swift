@@ -43,7 +43,7 @@ extension BleTransport: BleModuleDelegate {
     private var scanDuration: TimeInterval = 5.0 /// `scanDuration` will be overriden every time a value gets passed to `scan/create`
     
     private var peripheralsServicesTuple = [PeripheralInfo]()
-    private var connectedPeripheral: PeripheralIdentifier?
+    public private(set) var connectedPeripheral: PeripheralIdentifier?
     private var bluetoothAvailabilityCompletion: ((Bool)->())?
     private var bluetoothStateCompletion: ((CBManagerState)->())?
     private var notifyDisconnectedCompletion: EmptyResponse?
