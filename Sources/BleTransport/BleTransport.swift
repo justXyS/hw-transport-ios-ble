@@ -300,7 +300,7 @@ extension BleTransport: BleModuleDelegate {
                 var i = 0
                 let format = data[i]
                 if format != 1 {
-                    failure(BleTransportError.lowerLevelError(description: "Format is not supported"))
+                    failure(BleTransportError.lowerLevelError(description: "Format is not supported(\(string))"))
                     return
                 }
                 i += 1
