@@ -527,9 +527,12 @@ extension BleTransport: BleModuleDelegate {
     fileprivate func clearConnection() {
         connectedPeripheral = nil
         isExchanging = false
-        notifyDisconnectedCompletion?()
-        notifyDisconnectedCompletion = nil /// We call `notifyDisconnectedCompletion` only once since it's used to be notified about the next disconnection not all of them
-        disconnectedCallback?()
+        if let notifyDisconnectedCompletion {
+            notifyDisconnectedCompletion()
+            self.notifyDisconnectedCompletion = nil /// We call `notifyDisconnectedCompletion` only once since it's used to be notified about the next disconnection not all of them
+        } else {
+            disconnectedCallback?()
+        }
     }
     
     fileprivate func openApp(_ name: String, success: @escaping EmptyResponse, failure: @escaping ErrorResponse) {
@@ -559,7 +562,7 @@ extension BleTransport: BleModuleDelegate {
                 if let error = self.parseStatus(response: response, errorCodes: errorCodes) {
                     failure(error)
                 } else {
-                    if device != .flex, device != .gen5 {
+                    if device != .flex, device != .gen5, device != .stax {
                         self.notifyDisconnected {
                             self.connect(toPeripheralID: connectedPeripheral, disconnectedCallback: disconnectedCallback) { _ in
                                 success()
@@ -597,7 +600,7 @@ extension BleTransport: BleModuleDelegate {
             
             switch result {
             case .success(_):
-                if device != .flex, device != .gen5 {
+                if device != .flex, device != .gen5, device != .stax {
                     self.notifyDisconnected {
                         self.connect(toPeripheralID: connectedPeripheral, disconnectedCallback: disconnectedCallback) { _ in
                             success()
