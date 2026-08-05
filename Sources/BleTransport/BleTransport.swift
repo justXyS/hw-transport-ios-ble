@@ -343,6 +343,9 @@ extension BleTransport: BleModuleDelegate {
         }
     }
     
+    public func clearNotifyDisconnectedCompletion() {
+        self.notifyDisconnectedCompletion = nil
+    }
     
     // MARK: - Private methods
     
@@ -562,14 +565,23 @@ extension BleTransport: BleModuleDelegate {
                 if let error = self.parseStatus(response: response, errorCodes: errorCodes) {
                     failure(error)
                 } else {
-                    if device != .flex, device != .gen5, device != .stax {
+                    if device == .nanox {
+                        let work = DispatchWorkItem {
+                            self.clearNotifyDisconnectedCompletion()
+                            success()
+                        }
+                        
                         self.notifyDisconnected {
+                            work.cancel()
                             self.connect(toPeripheralID: connectedPeripheral, disconnectedCallback: disconnectedCallback) { _ in
                                 success()
                             } failure: { error in
                                 failure(error)
                             }
                         }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+                        
                     } else {
                         success()
                     }
@@ -600,14 +612,23 @@ extension BleTransport: BleModuleDelegate {
             
             switch result {
             case .success(_):
-                if device != .flex, device != .gen5, device != .stax {
+                if device == .nanox {
+                    let work = DispatchWorkItem {
+                        self.clearNotifyDisconnectedCompletion()
+                        success()
+                    }
+                    
                     self.notifyDisconnected {
+                        work.cancel()
                         self.connect(toPeripheralID: connectedPeripheral, disconnectedCallback: disconnectedCallback) { _ in
                             success()
                         } failure: { error in
                             failure(error)
                         }
                     }
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+                    
                 } else {
                     success()
                 }
