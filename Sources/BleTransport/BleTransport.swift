@@ -580,7 +580,7 @@ extension BleTransport: BleModuleDelegate {
                             }
                         }
                         
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
                         
                     } else {
                         success()
@@ -627,7 +627,7 @@ extension BleTransport: BleModuleDelegate {
                         }
                     }
                     
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
                     
                 } else {
                     success()
